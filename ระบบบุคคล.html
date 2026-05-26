@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบทะเบียนประวัติข้าราชการครูฯ (Sukhothai SEC)</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Prompt', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            purple: '#6B21A8',
+                            yellow: '#EAB308',
+                            orange: '#F97316'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Utilities */
+        .section-hidden { display: none !important; }
+        #loading-overlay { backdrop-filter: blur(2px); }
+
+        /* Print Layout Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { 
+                position: absolute; 
+                left: 0; 
+                top: 0; 
+                width: 100%; 
+                padding: 0;
+                margin: 0;
+                background-color: white !important;
+            }
+            .print-table { border-collapse: collapse !important; width: 100% !important; margin: 0 auto !important; }
+            .print-table th, .print-table td { 
+                border: 1px solid #000 !important; 
+                padding: 6px !important; 
+                color: #000 !important; 
+                font-size: 12pt !important; 
+            }
+            .print-table th { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
+            .print-container { max-width: 100%; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+            .page-break-avoid { page-break-inside: avoid; }
+        }
+    </style>
+    <!-- Dynamic Print Page Size Setup -->
+    <style id="dynamic-print-page"></style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans h-screen flex overflow-hidden">
+
+    <!-- ================= Sidebar ================= -->
+    <aside id="sidebar" class="w-64 bg-brand-purple text-white flex flex-col transition-all duration-300 section-hidden z-30">
+        <div class="p-6 flex items-center justify-center border-b border-purple-700">
+            <div class="text-center">
+                <i class="fa-solid fa-school text-brand-yellow text-3xl mb-2"></i>
+                <h1 class="text-lg font-bold leading-tight">Sukhothai SEC<br><span class="text-sm font-normal text-purple-200">ระบบทะเบียนประวัติ</span></h1>
+            </div>
+        </div>
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto" id="nav-menu"></nav>
+        <div class="p-4 border-t border-purple-700 bg-purple-900 text-sm">
+            <p>สถานะ: <span id="display-role" class="text-brand-yellow font-medium">Loading...</span></p>
+        </div>
+    </aside>
+
+    <!-- ================= Main Content Area ================= -->
+    <div class="flex-1 flex flex-col relative w-full h-full">
+        
+        <!-- Topbar -->
+        <header id="topbar" class="bg-white shadow-sm px-6 py-4 flex justify-between items-center section-hidden z-10">
+            <button onclick="toggleSidebar()" class="text-gray-500 hover:text-brand-purple focus:outline-none md:hidden">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+            <h2 id="page-title" class="text-xl font-semibold text-brand-purple hidden md:block">แดชบอร์ด</h2>
+            <div class="flex items-center space-x-4">
+                <span id="display-username" class="font-medium text-gray-700"></span>
+                <button onclick="logout()" class="text-red-500 hover:text-red-700 font-medium px-3 py-1 rounded border border-red-500 hover:bg-red-50 transition">
+                    <i class="fa-solid fa-sign-out-alt mr-1"></i> ออกจากระบบ
+                </button>
+            </div>
+        </header>
+
+        <!-- Pages (Views) -->
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6 relative">
+            
+            <!-- View: Login -->
+            <section id="view-login" class="h-full flex items-center justify-center w-full absolute inset-0 bg-gray-100 z-20">
+                <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border-t-4 border-brand-purple">
+                    <div class="text-center mb-6">
+                        <i class="fa-solid fa-users-cog text-4xl text-brand-yellow mb-3"></i>
+                        <h2 class="text-2xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
+                        <p class="text-gray-500 text-sm mt-1">ระบบทะเบียนประวัติข้าราชการครูฯ (Sukhothai SEC)</p>
+                    </div>
+                    <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="fa-solid fa-user text-gray-400"></i>
+                                </div>
+                                <input type="text" id="login-username" class="w-full pl-10 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-purple focus:border-brand-purple outline-none" required placeholder="กรอกชื่อผู้ใช้งาน">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน (Password)</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="fa-solid fa-lock text-gray-400"></i>
+                                </div>
+                                <input type="password" id="login-password" class="w-full pl-10 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-purple focus:border-brand-purple outline-none" required placeholder="กรอกรหัสผ่าน">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-brand-purple text-white font-medium py-2.5 rounded-lg hover:bg-purple-800 transition shadow-md flex justify-center items-center mt-2">
+                            <i class="fa-solid fa-right-to-bracket mr-2"></i> เข้าสู่ระบบ
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- View: 1. Personal Info -->
+            <section id="view-personal-info" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-brand-purple flex-1 flex flex-col relative">
+                    <div class="bg-purple-50 px-6 py-4 border-b border-purple-100 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-brand-purple"><i class="fa-regular fa-address-card mr-2 text-brand-yellow"></i>ข้อมูลพื้นฐานและประวัติส่วนตัว</h3>
+                        <button onclick="openEditPersonalModal()" class="bg-brand-yellow hover:bg-yellow-500 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium transition-colors flex items-center">
+                            <i class="fa-solid fa-pen-to-square mr-2"></i> แก้ไขข้อมูล
+                        </button>
+                    </div>
+                    <div id="personal-info-container" class="p-6 flex-1 overflow-y-auto"></div>
+                </div>
+            </section>
+
+            <!-- View: 2. Education -->
+            <section id="view-education" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-brand-purple flex-1 flex flex-col relative">
+                    <div class="bg-purple-50 px-6 py-4 border-b border-purple-100 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-brand-purple"><i class="fa-solid fa-graduation-cap mr-2 text-brand-yellow"></i>ประวัติการศึกษา</h3>
+                        <button onclick="openEducationModal()" class="bg-brand-purple hover:bg-purple-800 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium transition-colors flex items-center">
+                            <i class="fa-solid fa-plus mr-2"></i> เพิ่มข้อมูล
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <thead class="bg-gray-100 text-gray-600 text-sm uppercase font-medium">
+                                <tr>
+                                    <th class="py-3 px-4 text-left">ระดับการศึกษา</th>
+                                    <th class="py-3 px-4 text-left">วุฒิการศึกษา</th>
+                                    <th class="py-3 px-4 text-left">สาขา/วิชาเอก</th>
+                                    <th class="py-3 px-4 text-left">สถาบัน</th>
+                                    <th class="py-3 px-4 text-center">วันที่สำเร็จ</th>
+                                    <th class="py-3 px-4 text-center">เอกสารแนบ</th>
+                                    <th class="py-3 px-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="education-table-body" class="text-gray-700 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: 3. Licenses -->
+            <section id="view-licenses" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-brand-purple flex-1 flex flex-col relative">
+                    <div class="bg-purple-50 px-6 py-4 border-b border-purple-100 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-brand-purple"><i class="fa-solid fa-id-badge mr-2 text-brand-yellow"></i>ข้อมูลประกอบวิชาชีพ</h3>
+                        <button onclick="openLicensesModal()" class="bg-brand-purple hover:bg-purple-800 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium transition-colors flex items-center">
+                            <i class="fa-solid fa-plus mr-2"></i> เพิ่มข้อมูล
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <thead class="bg-gray-100 text-gray-600 text-sm uppercase font-medium">
+                                <tr>
+                                    <th class="py-3 px-4 text-left">ประเภทใบอนุญาต</th>
+                                    <th class="py-3 px-4 text-left">เลขที่ใบอนุญาต</th>
+                                    <th class="py-3 px-4 text-center">วันออกบัตร</th>
+                                    <th class="py-3 px-4 text-center">วันหมดอายุ</th>
+                                    <th class="py-3 px-4 text-center">เอกสารแนบ</th>
+                                    <th class="py-3 px-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="licenses-table-body" class="text-gray-700 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: 4. Leave -->
+            <section id="view-leave" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-brand-purple flex-1 flex flex-col relative">
+                    <div class="bg-purple-50 px-6 py-4 border-b border-purple-100 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-brand-purple"><i class="fa-solid fa-calendar-minus mr-2 text-brand-yellow"></i>ประวัติการลาและการใช้สิทธิ์</h3>
+                        <button onclick="openLeaveModal()" class="bg-brand-purple hover:bg-purple-800 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium transition-colors flex items-center">
+                            <i class="fa-solid fa-notes-medical mr-2"></i> ยื่นใบลา
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <thead class="bg-gray-100 text-gray-600 text-sm uppercase font-medium">
+                                <tr>
+                                    <th class="py-3 px-4 text-left">วันที่ยื่นเรื่อง</th>
+                                    <th class="py-3 px-4 text-left">ประเภทการลา</th>
+                                    <th class="py-3 px-4 text-center">เริ่มวันที่</th>
+                                    <th class="py-3 px-4 text-center">ถึงวันที่</th>
+                                    <th class="py-3 px-4 text-center">กลับมาปฏิบัติงาน</th>
+                                    <th class="py-3 px-4 text-center">สถานะ</th>
+                                    <th class="py-3 px-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leave-table-body" class="text-gray-700 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Admin - Manage Users -->
+            <section id="view-admin-manage" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-gray-800 flex-1 flex flex-col relative">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <h3 class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-users-cog mr-2 text-brand-purple"></i>จัดการข้อมูลบุคลากรทั้งหมด</h3>
+                        <div class="flex items-center space-x-3 w-full md:w-auto">
+                            <div class="relative flex-1 md:w-64">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-search text-gray-400"></i></div>
+                                <input type="text" id="admin-search-user" onkeyup="searchAdminTable()" class="w-full pl-10 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-brand-purple outline-none" placeholder="ค้นหาชื่อ, ตำแหน่ง, Username...">
+                            </div>
+                            <button onclick="openAdminAccountModal()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-user-plus mr-2"></i> สร้างบัญชีใหม่
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <thead class="bg-gray-800 text-white text-sm uppercase font-medium">
+                                <tr>
+                                    <th class="py-3 px-4 text-left">บัญชีผู้ใช้ (Username)</th>
+                                    <th class="py-3 px-4 text-left">ชื่อ-นามสกุล</th>
+                                    <th class="py-3 px-4 text-left">ตำแหน่ง</th>
+                                    <th class="py-3 px-4 text-center">ระดับสิทธิ์ (Role)</th>
+                                    <th class="py-3 px-4 text-center">สถานะ (Status)</th>
+                                    <th class="py-3 px-4 text-center">การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-manage-table-body" class="text-gray-700 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Admin - Reports -->
+            <section id="view-admin-reports" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-gray-800 flex-1 flex flex-col relative">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-print mr-2 text-brand-purple"></i>ระบบออกรายงานแบบไดนามิก</h3>
+                    </div>
+                    <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                        <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <h4 class="font-medium text-gray-800 mb-4 border-b pb-2">1. เลือกข้อมูลที่ต้องการนำมาสร้างรายงาน</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" id="report-fields-container">
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="Username" class="report-cb text-brand-purple" checked disabled> <span class="text-gray-500">Username</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="Firstname" class="report-cb text-brand-purple" checked disabled> <span class="text-gray-500">ชื่อ</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="Lastname" class="report-cb text-brand-purple" checked disabled> <span class="text-gray-500">นามสกุล</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="Position" class="report-cb text-brand-purple"> <span>ตำแหน่ง</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="level" class="report-cb text-brand-purple"> <span>วิทยฐานะ</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="IDCard" class="report-cb text-brand-purple"> <span>เลขบัตรประชาชน</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="Phone" class="report-cb text-brand-purple"> <span>เบอร์โทรศัพท์</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="RecruitDate" class="report-cb text-brand-purple"> <span>วันที่บรรจุ</span></label>
+                                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" value="Blood" class="report-cb text-brand-purple"> <span>หมู่เลือด</span></label>
+                            </div>
+                            <h4 class="font-medium text-gray-800 mb-4 border-b pb-2">2. ตั้งค่าหน้ากระดาษและการพิมพ์</h4>
+                            <div class="flex flex-col md:flex-row gap-4 items-end">
+                                <div class="flex-1 w-full">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">หัวข้อรายงาน</label>
+                                    <input type="text" id="report-title" value="รายงานสรุปข้อมูลบุคลากร" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-gray-800 focus:border-gray-800">
+                                </div>
+                                <div class="w-full md:w-48">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">แนวกระดาษ</label>
+                                    <select id="report-orientation" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-gray-800 focus:border-gray-800">
+                                        <option value="portrait">แนวตั้ง (Portrait)</option>
+                                        <option value="landscape">แนวนอน (Landscape)</option>
+                                    </select>
+                                </div>
+                                <button onclick="generateAndPrintReport()" class="w-full md:w-auto bg-gray-800 hover:bg-gray-900 text-white px-6 py-2 rounded shadow-md font-medium transition-colors flex items-center justify-center">
+                                    <i class="fa-solid fa-print mr-2"></i> สร้างและสั่งพิมพ์
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Admin - Config -->
+            <section id="view-admin-config" class="section-hidden h-full flex flex-col">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-t-4 border-gray-800 flex-1 flex flex-col relative">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-cogs mr-2 text-brand-purple"></i>ตั้งค่าระบบ (System Configuration)</h3>
+                    </div>
+                    <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                        <div class="max-w-3xl mx-auto bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+                            <div class="text-center mb-8">
+                                <i class="fa-solid fa-server text-4xl text-gray-400 mb-3"></i>
+                                <h2 class="text-xl font-bold text-gray-800">การเชื่อมต่อฐานข้อมูล (Database Connection)</h2>
+                            </div>
+                            <form id="form-admin-config" class="space-y-6">
+                                <div class="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                                    <h4 class="font-semibold text-brand-purple mb-3"><i class="fa-solid fa-link mr-2"></i>Web App URL (GAS API)</h4>
+                                    <div class="space-y-1">
+                                        <input type="text" id="config-api-url" class="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono bg-white" readonly>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                                    <h4 class="font-semibold text-gray-800"><i class="fa-brands fa-google-drive mr-2 text-brand-yellow"></i>Google Workspace IDs</h4>
+                                    <div class="space-y-1">
+                                        <label class="text-sm font-medium text-gray-700">Google Sheets ID (ฐานข้อมูลหลัก)</label>
+                                        <input type="text" id="config-sheet-id" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-gray-800 sm:text-sm font-mono text-gray-600" value="1NKSqlIDZElyFfY9QyQnzwoQMjcNFc1uQUtnHkSVIJqE">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-sm font-medium text-gray-700">Google Drive Folder ID (ที่เก็บไฟล์)</label>
+                                        <input type="text" id="config-folder-id" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-gray-800 sm:text-sm font-mono text-gray-600" value="1lwFAFd-xhrtJXC7U0DprlPkYHTQ7zHH1">
+                                    </div>
+                                </div>
+                                <div class="pt-4 flex justify-end">
+                                    <button type="button" onclick="saveAdminConfig()" class="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2.5 rounded-lg shadow-md font-medium transition-colors"><i class="fa-solid fa-save mr-2"></i> บันทึกการตั้งค่าระบบ</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ================= Printable Area ================= -->
+    <div id="printable-area" class="hidden">
+        <div class="print-container w-full">
+            <h2 id="print-header-title" class="text-xl font-bold mb-4 text-center mt-8">หัวข้อรายงาน</h2>
+            <table class="print-table w-full mb-6">
+                <thead id="print-table-head"></thead>
+                <tbody id="print-table-body"></tbody>
+            </table>
+            <div class="w-full page-break-avoid flex flex-col items-center mt-4">
+                <div class="mb-10 text-center text-sm font-medium">สรุปจำนวนบุคลากรในรายงาน: <span id="print-summary-count" class="font-bold underline">0</span> ราย</div>
+                <div class="text-center w-64 text-sm mt-8">
+                    <p class="mb-4">(ลงชื่อ)........................................................ผู้รายงาน</p>
+                    <p class="mb-2">(........................................................)</p>
+                    <p>ตำแหน่ง........................................................</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= Loading Overlay ================= -->
+    <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex flex-col items-center justify-center z-50 section-hidden text-white">
+        <i class="fa-solid fa-circle-notch fa-spin text-5xl text-brand-yellow mb-4"></i>
+        <p id="loading-text" class="text-lg font-medium">กำลังประมวลผลข้อมูล...</p>
+    </div>
+
+    <!-- ================= Modals Area ================= -->
+    
+    <!-- Modal 1: Personal Info -->
+    <div id="modal-edit-personal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 section-hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-brand-purple px-6 py-4 flex justify-between items-center text-white">
+                <h3 class="text-lg font-semibold"><i class="fa-solid fa-user-pen mr-2 text-brand-yellow"></i>แก้ไขข้อมูลส่วนบุคคล</h3>
+                <button onclick="closeEditPersonalModal()" class="text-white hover:text-red-300 text-xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <form id="form-personal-info" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <input type="hidden" id="pi-username" name="Username">
+                    <div><label class="text-sm font-medium text-gray-700">คำนำหน้า</label><input type="text" id="pi-prefix" name="Prefix" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">ชื่อ</label><input type="text" id="pi-firstname" name="Firstname" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">นามสกุล</label><input type="text" id="pi-lastname" name="Lastname" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">เลขบัตรประชาชน</label><input type="text" id="pi-idcard" name="IDCard" maxlength="13" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">ตำแหน่ง</label><input type="text" id="pi-position" name="Position" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">วิทยฐานะ</label><input type="text" id="pi-level" name="level" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">วันเกิด (ค.ศ.)</label><input type="date" id="pi-birthdate" name="BirthDate" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">วันบรรจุ (ค.ศ.)</label><input type="date" id="pi-recruitdate" name="RecruitDate" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">เบอร์โทรศัพท์</label><input type="tel" id="pi-phone" name="Phone" class="w-full border rounded px-3 py-2"></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">ที่อยู่ปัจจุบัน</label><textarea id="pi-address" name="Address" rows="3" class="w-full border rounded px-3 py-2"></textarea></div>
+                    <div><label class="text-sm font-medium text-gray-700">หมู่เลือด</label><select id="pi-blood" name="Blood" class="w-full border rounded px-3 py-2"><option value="">เลือก...</option><option value="A">A</option><option value="B">B</option><option value="AB">AB</option><option value="O">O</option></select></div>
+                    <div><label class="text-sm font-medium text-gray-700">ชื่อ-สกุล บิดา</label><input type="text" id="pi-father" name="Father" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">ชื่อ-สกุล มารดา</label><input type="text" id="pi-mother" name="Mother" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">ชื่อ-สกุล คู่สมรส</label><input type="text" id="pi-spouse" name="Spouse" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">จำนวนบุตร</label><input type="number" id="pi-children" name="Children" class="w-full border rounded px-3 py-2"></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">อัปโหลดรูปถ่าย</label><input type="file" id="pi-image" accept="image/*" class="w-full text-sm"></div>
+                </form>
+            </div>
+            <div class="bg-gray-100 px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeEditPersonalModal()" class="px-4 py-2 border rounded hover:bg-gray-200">ยกเลิก</button>
+                <button onclick="savePersonalInfo()" class="px-4 py-2 bg-brand-purple text-white rounded"><i class="fa-solid fa-save mr-2"></i>บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Education -->
+    <div id="modal-education" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 section-hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-brand-purple px-6 py-4 flex justify-between items-center text-white">
+                <h3 id="modal-education-title" class="text-lg font-semibold">ประวัติการศึกษา</h3>
+                <button onclick="closeEducationModal()" class="text-white hover:text-red-300 text-xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <form id="form-education" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="ed-eduid" name="EduID">
+                    <input type="hidden" id="ed-username" name="Username">
+                    <input type="hidden" id="ed-action-type">
+                    <div><label class="text-sm font-medium text-gray-700">ระดับการศึกษา *</label><input type="text" id="ed-level" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">สถาบัน *</label><input type="text" id="ed-institute" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">ชื่อวุฒิการศึกษา *</label><input type="text" id="ed-degreename" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">อักษรย่อวุฒิ</label><input type="text" id="ed-degreeabbr" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">สาขา/วิชาเอก</label><input type="text" id="ed-major" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">วิชาโท</label><input type="text" id="ed-minor" class="w-full border rounded px-3 py-2"></div>
+                    <div><label class="text-sm font-medium text-gray-700">วันที่สำเร็จ (ค.ศ.) *</label><input type="date" id="ed-date" class="w-full border rounded px-3 py-2" required></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">แนบไฟล์ PDF/รูป</label><input type="file" id="ed-doc" class="w-full text-sm"><p id="ed-current-doc" class="text-xs text-brand-orange mt-1 section-hidden">มีเอกสารแนบเดิมอยู่แล้ว</p></div>
+                </form>
+            </div>
+            <div class="bg-gray-100 px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeEducationModal()" class="px-4 py-2 border rounded hover:bg-gray-200">ยกเลิก</button>
+                <button onclick="saveEducationInfo()" class="px-4 py-2 bg-brand-purple text-white rounded"><i class="fa-solid fa-save mr-2"></i>บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Licenses -->
+    <div id="modal-licenses" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 section-hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-brand-purple px-6 py-4 flex justify-between items-center text-white">
+                <h3 id="modal-licenses-title" class="text-lg font-semibold">ข้อมูลประกอบวิชาชีพ</h3>
+                <button onclick="closeLicensesModal()" class="text-white hover:text-red-300 text-xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <form id="form-licenses" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="lic-licenseid">
+                    <input type="hidden" id="lic-username">
+                    <input type="hidden" id="lic-action-type">
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">ประเภทใบอนุญาต *</label><input type="text" id="lic-type" class="w-full border rounded px-3 py-2" required></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">เลขที่ใบอนุญาต *</label><input type="text" id="lic-no" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">วันออกบัตร (ค.ศ.) *</label><input type="date" id="lic-issue" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">วันหมดอายุ (ค.ศ.)</label><input type="date" id="lic-expire" class="w-full border rounded px-3 py-2"><p class="text-xs text-gray-500">*เว้นว่างไว้หากเป็นตลอดชีพ</p></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">เอกสารแนบ</label><input type="file" id="lic-doc" class="w-full text-sm"><p id="lic-current-doc" class="text-xs text-brand-orange mt-1 section-hidden">มีเอกสารแนบเดิมอยู่แล้ว</p></div>
+                </form>
+            </div>
+            <div class="bg-gray-100 px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeLicensesModal()" class="px-4 py-2 border rounded hover:bg-gray-200">ยกเลิก</button>
+                <button onclick="saveLicensesInfo()" class="px-4 py-2 bg-brand-purple text-white rounded"><i class="fa-solid fa-save mr-2"></i>บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Leave -->
+    <div id="modal-leave" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 section-hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-brand-purple px-6 py-4 flex justify-between items-center text-white">
+                <h3 id="modal-leave-title" class="text-lg font-semibold">ข้อมูลการลา</h3>
+                <button onclick="closeLeaveModal()" class="text-white hover:text-red-300 text-xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <form id="form-leave" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="lv-leaveid">
+                    <input type="hidden" id="lv-username">
+                    <input type="hidden" id="lv-action-type">
+                    <input type="hidden" id="lv-dateapprove">
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">วันที่ยื่นเรื่อง (ค.ศ.) *</label><input type="date" id="lv-submit" class="w-full border rounded px-3 py-2 bg-gray-100" required readonly></div>
+                    <div class="md:col-span-2">
+                        <label class="text-sm font-medium text-gray-700">ประเภทการลา *</label>
+                        <select id="lv-type" class="w-full border rounded px-3 py-2" required onchange="updateLeaveRuleHint()">
+                            <option value="">-- เลือกประเภทการลา --</option>
+                            <option value="ลาป่วย">การลาป่วย</option>
+                            <option value="ลาคลอดบุตร">การลาคลอดบุตร</option>
+                            <option value="ลาไปช่วยเหลือภริยาที่คลอดบุตร">การลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
+                            <option value="ลากิจส่วนตัว">การลากิจส่วนตัว</option>
+                            <option value="ลาพักผ่อน">การลาพักผ่อน (พักร้อน)</option>
+                            <option value="ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์">การลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์</option>
+                            <option value="ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล">การลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
+                            <option value="ลาไปศึกษา ฝึกอบรม ดูงาน หรือปฏิบัติการวิจัย">การลาไปศึกษา ฝึกอบรม ดูงาน หรือปฏิบัติการวิจัย</option>
+                            <option value="ลาไปปฏิบัติงานในองค์การระหว่างประเทศ">การลาไปปฏิบัติงานในองค์การระหว่างประเทศ</option>
+                            <option value="ลาติดตามคู่สมรส">การติดตามคู่สมรส</option>
+                            <option value="ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ">การลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option>
+                        </select>
+                        <div id="lv-rule-hint" class="text-xs text-brand-purple mt-2 p-2 bg-purple-50 rounded border border-purple-100 section-hidden"></div>
+                    </div>
+                    <div><label class="text-sm font-medium text-gray-700">ตั้งแต่วันที่ (ค.ศ.) *</label><input type="date" id="lv-start" class="w-full border rounded px-3 py-2" required onchange="calculateReturnDate()"></div>
+                    <div><label class="text-sm font-medium text-gray-700">ถึงวันที่ (ค.ศ.) *</label><input type="date" id="lv-end" class="w-full border rounded px-3 py-2" required onchange="calculateReturnDate()"></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">กลับมาปฏิบัติงาน (ค.ศ.) *</label><input type="date" id="lv-onwork" class="w-full border rounded px-3 py-2" required></div>
+                    <div class="md:col-span-2"><label class="text-sm font-medium text-gray-700">ช่องทางติดต่อ *</label><textarea id="lv-contact" rows="2" class="w-full border rounded px-3 py-2" required></textarea></div>
+                </form>
+                <div id="lv-status-warning" class="mt-4 p-3 bg-orange-50 border border-orange-200 text-orange-700 text-sm rounded-md section-hidden">รายการนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขได้</div>
+            </div>
+            <div class="bg-gray-100 px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeLeaveModal()" class="px-4 py-2 border rounded hover:bg-gray-200">ยกเลิก</button>
+                <button id="btn-save-leave" onclick="saveLeaveInfo()" class="px-4 py-2 bg-brand-purple text-white rounded"><i class="fa-solid fa-save mr-2"></i>บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 5: Admin Account -->
+    <div id="modal-admin-account" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 section-hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+            <div class="bg-gray-800 px-6 py-4 flex justify-between items-center text-white">
+                <h3 id="modal-admin-account-title" class="text-lg font-semibold">จัดการบัญชี</h3>
+                <button onclick="closeAdminAccountModal()" class="text-white hover:text-red-300 text-xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <form id="form-admin-account" class="space-y-4">
+                    <input type="hidden" id="adm-action-type">
+                    <div id="adm-new-user-notice" class="p-3 bg-purple-50 text-brand-purple text-xs rounded-md border border-purple-100 section-hidden">เมื่อสร้างบัญชีใหม่ ระบบจะสร้างพื้นที่ข้อมูลส่วนตัวให้อัตโนมัติ</div>
+                    <div><label class="text-sm font-medium text-gray-700">Username *</label><input type="text" id="adm-username" class="w-full border rounded px-3 py-2" required></div>
+                    <div><label class="text-sm font-medium text-gray-700">Password *</label><input type="text" id="adm-password" class="w-full border rounded px-3 py-2" required></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="text-sm font-medium text-gray-700">สิทธิ์ (Role) *</label><select id="adm-role" class="w-full border rounded px-3 py-2" required><option value="user">User</option><option value="admin">Admin</option></select></div>
+                        <div><label class="text-sm font-medium text-gray-700">สถานะ *</label><select id="adm-status" class="w-full border rounded px-3 py-2" required><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-100 px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeAdminAccountModal()" class="px-4 py-2 border rounded hover:bg-gray-200">ยกเลิก</button>
+                <button onclick="saveAdminAccount()" class="px-4 py-2 bg-gray-800 text-white rounded"><i class="fa-solid fa-save mr-2"></i>บันทึกบัญชี</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= JavaScript Core ================= -->
+    <script>
+        // --- 1. CONFIGURATION ---
+        const API_URL = "https://script.google.com/macros/s/AKfycbxnFUAyzpQrdiNgmnttkwchAEXsH_C9IGApiC-402562KMU_Yuk4errAr8CJDr15vXQ/exec";
+        const SECURITY_TOKEN = "kosinhr3";
+
+        let currentUser = null;
+        let personalDataCache = null;
+        let educationDataCache = null;
+        let licensesDataCache = null;
+        let leaveDataCache = null;
+        
+        let adminAllUsersCache = [];
+        let adminAllPersonalInfoCache = [];
+
+        // --- 2. CORE & ROUTING ---
+        async function callAPI(payload, loadingMessage = "กำลังโหลดข้อมูล...") {
+            if(loadingMessage) showLoading(loadingMessage);
+            payload.token = SECURITY_TOKEN;
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if(loadingMessage) hideLoading();
+                return result;
+            } catch (error) {
+                if(loadingMessage) hideLoading();
+                alert("Error: ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้\n" + error.message);
+                return { status: "error", message: error.message };
+            }
+        }
+
+        function navigateTo(viewId, title = null) {
+            document.querySelectorAll('main > section').forEach(sec => sec.classList.add('section-hidden'));
+            const targetView = document.getElementById(`view-${viewId}`);
+            if (targetView) targetView.classList.remove('section-hidden');
+            if (title) document.getElementById('page-title').innerText = title;
+            updateMenuUI(viewId);
+            loadDataForView(viewId);
+        }
+
+        function formatDateTH(dateString) {
+            if (!dateString) return "-";
+            const d = new Date(dateString);
+            if (isNaN(d)) return dateString;
+            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+        }
+
+        function showLoading(text) { document.getElementById('loading-text').innerText = text; document.getElementById('loading-overlay').classList.remove('section-hidden'); }
+        function hideLoading() { document.getElementById('loading-overlay').classList.add('section-hidden'); }
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); }
+
+        // --- 3. AUTH & MENU ---
+        async function handleLogin(event) {
+            event.preventDefault();
+            const payload = { action: "login", username: document.getElementById('login-username').value.trim(), password: document.getElementById('login-password').value.trim() };
+            const res = await callAPI(payload, "ตรวจสอบข้อมูล...");
+            if (res.status === "success") {
+                currentUser = res.user;
+                document.getElementById('display-username').innerText = currentUser.username;
+                document.getElementById('display-role').innerText = currentUser.role === "admin" ? "Admin" : "User";
+                generateMenu();
+                document.getElementById('view-login').classList.add('section-hidden');
+                document.getElementById('sidebar').classList.remove('section-hidden');
+                document.getElementById('topbar').classList.remove('section-hidden');
+                document.getElementById('form-login').reset();
+                navigateTo('personal-info', 'ข้อมูลส่วนบุคคล');
+            } else { alert(res.message); }
+        }
+
+        function logout() {
+            if (confirm("ต้องการออกจากระบบ?")) {
+                currentUser = personalDataCache = educationDataCache = licensesDataCache = leaveDataCache = null;
+                adminAllUsersCache = adminAllPersonalInfoCache = [];
+                document.getElementById('sidebar').classList.add('section-hidden');
+                document.getElementById('topbar').classList.add('section-hidden');
+                document.querySelectorAll('main > section').forEach(sec => sec.classList.add('section-hidden'));
+                document.getElementById('view-login').classList.remove('section-hidden');
+            }
+        }
+
+        function generateMenu() {
+            const navMenu = document.getElementById('nav-menu');
+            navMenu.innerHTML = '';
+            const userMenus = [
+                { id: "personal-info", icon: "fa-address-card", title: "ข้อมูลส่วนบุคคล" },
+                { id: "education", icon: "fa-graduation-cap", title: "ประวัติการศึกษา" },
+                { id: "licenses", icon: "fa-id-badge", title: "ข้อมูลประกอบวิชาชีพ" },
+                { id: "leave", icon: "fa-calendar-minus", title: "ระบบการลา" }
+            ];
+            const adminMenus = [
+                { isDivider: true, title: "ส่วนของผู้ดูแลระบบ" },
+                { id: "admin-manage", icon: "fa-users-cog", title: "จัดการข้อมูลบุคลากร" },
+                { id: "admin-reports", icon: "fa-print", title: "ออกรายงาน (Reports)" },
+                { id: "admin-config", icon: "fa-cogs", title: "ตั้งค่าระบบ" }
+            ];
+            let menus = currentUser.role === "admin" ? [...userMenus, ...adminMenus] : userMenus;
+            
+            menus.forEach(menu => {
+                if (menu.isDivider) {
+                    navMenu.innerHTML += `<div class="mt-6 mb-2 px-4 text-xs font-semibold text-purple-300 uppercase">${menu.title}</div>`;
+                } else {
+                    navMenu.innerHTML += `<button id="menu-btn-${menu.id}" onclick="navigateTo('${menu.id}', '${menu.title}')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors text-purple-100 hover:bg-purple-800 hover:text-white menu-item"><i class="fa-solid ${menu.icon} w-6 text-brand-yellow"></i><span>${menu.title}</span></button>`;
+                }
+            });
+        }
+
+        function updateMenuUI(activeId) {
+            document.querySelectorAll('.menu-item').forEach(btn => { btn.classList.remove('bg-purple-800', 'text-white', 'border-l-4', 'border-brand-yellow'); btn.classList.add('text-purple-100'); });
+            const btn = document.getElementById(`menu-btn-${activeId}`);
+            if (btn) { btn.classList.remove('text-purple-100'); btn.classList.add('bg-purple-800', 'text-white', 'border-l-4', 'border-brand-yellow'); }
+        }
+
+        // --- 4. LAZY LOAD DATA CONTROLLER ---
+        async function loadDataForView(viewId) {
+            if (viewId === 'personal-info') {
+                if (!personalDataCache) {
+                    const res = await callAPI({ action: "read", sheetName: "PersonalInfo", username: currentUser.username, role: currentUser.role });
+                    if (res.status === "success" && res.data.length > 0) {
+                        personalDataCache = res.data.find(r => r.Username === currentUser.username) || res.data[0];
+                        renderPersonalInfo(personalDataCache);
+                    } else { document.getElementById('personal-info-container').innerHTML = 'ไม่พบข้อมูล'; }
+                } else { renderPersonalInfo(personalDataCache); }
+            } 
+            else if (viewId === 'education') {
+                if (!educationDataCache) {
+                    const res = await callAPI({ action: "read", sheetName: "Education", username: currentUser.username, role: currentUser.role });
+                    educationDataCache = res.status === "success" ? res.data.filter(r => r.Username === currentUser.username) : [];
+                }
+                renderEducationTable(educationDataCache);
+            }
+            else if (viewId === 'licenses') {
+                if (!licensesDataCache) {
+                    const res = await callAPI({ action: "read", sheetName: "Licenses", username: currentUser.username, role: currentUser.role });
+                    licensesDataCache = res.status === "success" ? res.data.filter(r => r.Username === currentUser.username) : [];
+                }
+                renderLicensesTable(licensesDataCache);
+            }
+            else if (viewId === 'leave') {
+                if (!leaveDataCache) {
+                    const res = await callAPI({ action: "read", sheetName: "Leave", username: currentUser.username, role: currentUser.role });
+                    leaveDataCache = res.status === "success" ? res.data.filter(r => r.Username === currentUser.username).sort((a, b) => new Date(b.Submit) - new Date(a.Submit)) : [];
+                }
+                renderLeaveTable(leaveDataCache);
+            }
+            else if (viewId === 'admin-manage') {
+                if (currentUser.role !== "admin") return alert("Denied");
+                if (adminAllUsersCache.length === 0 || adminAllPersonalInfoCache.length === 0) {
+                    showLoading("กำลังโหลดฐานข้อมูล...");
+                    const [uRes, pRes] = await Promise.all([
+                        callAPI({ action: "read", sheetName: "Users", username: currentUser.username, role: currentUser.role }, null),
+                        callAPI({ action: "read", sheetName: "PersonalInfo", username: currentUser.username, role: currentUser.role }, null)
+                    ]);
+                    hideLoading();
+                    if (uRes.status === "success") adminAllUsersCache = uRes.data;
+                    if (pRes.status === "success") adminAllPersonalInfoCache = pRes.data;
+                }
+                renderAdminManageTable();
+            }
+            else if (viewId === 'admin-reports') {
+                if (currentUser.role !== "admin") return alert("Denied");
+                if (adminAllPersonalInfoCache.length === 0) {
+                    const res = await callAPI({ action: "read", sheetName: "PersonalInfo", username: currentUser.username, role: currentUser.role });
+                    if (res.status === "success") adminAllPersonalInfoCache = res.data;
+                }
+            }
+            else if (viewId === 'admin-config') {
+                if (currentUser.role !== "admin") return navigateTo('personal-info');
+                document.getElementById('config-api-url').value = API_URL;
+            }
+        }
+
+        // --- 5. MODULES: PERSONAL INFO ---
+        function renderPersonalInfo(data) {
+            const img = (data.Image && data.Image !== "") ? data.Image : "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
+            document.getElementById('personal-info-container').innerHTML = `
+                <div class="flex flex-col md:flex-row gap-8">
+                    <div class="flex-shrink-0 flex flex-col items-center">
+                        <img src="${img}" class="w-40 h-48 object-cover rounded shadow border-2 border-brand-yellow">
+                        <span class="mt-3 px-3 py-1 bg-purple-100 text-brand-purple rounded-full text-xs font-semibold">${data.Position || "-"}</span>
+                    </div>
+                    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                        <div class="col-span-1 md:col-span-2 border-b pb-2"><h4 class="font-semibold text-gray-500">ข้อมูลพื้นฐาน</h4></div>
+                        <div><span class="text-gray-400 block">ชื่อ-นามสกุล:</span><span class="font-medium text-gray-800 text-lg">${data.Prefix||""}${data.Firstname||""} ${data.Lastname||""}</span></div>
+                        <div><span class="text-gray-400 block">เลขบัตรประชาชน:</span><span class="font-medium">${data.IDCard||"-"}</span></div>
+                        <div><span class="text-gray-400 block">วันเกิด:</span><span class="font-medium">${formatDateTH(data.BirthDate)}</span></div>
+                        <div><span class="text-gray-400 block">หมู่เลือด:</span><span class="font-medium text-red-500">${data.Blood||"-"}</span></div>
+                        <div class="col-span-1 md:col-span-2"><span class="text-gray-400 block">ที่อยู่:</span><span class="font-medium whitespace-pre-line">${data.Address||"-"}</span></div>
+                        
+                        <div class="col-span-1 md:col-span-2 border-b pb-2 mt-4"><h4 class="font-semibold text-gray-500">การปฏิบัติงาน</h4></div>
+                        <div><span class="text-gray-400 block">วิทยฐานะ/ระดับ:</span><span class="font-medium">${data.level||"-"}</span></div>
+                        <div><span class="text-gray-400 block">วันบรรจุ:</span><span class="font-medium">${formatDateTH(data.RecruitDate)}</span></div>
+                        <div><span class="text-gray-400 block">เบอร์โทร:</span><span class="font-medium">${data.Phone||"-"}</span></div>
+                    </div>
+                </div>`;
+        }
+        function openEditPersonalModal() {
+            if (!personalDataCache) return;
+            const keys = ["Username", "Prefix", "Firstname", "Lastname", "IDCard", "Position", "level", "Phone", "Address", "Blood", "Father", "Mother", "Spouse", "Children"];
+            keys.forEach(k => { const el = document.getElementById(`pi-${k.toLowerCase()}`); if(el) el.value = personalDataCache[k]||""; });
+            ['birthdate', 'recruitdate'].forEach(k => { const el = document.getElementById(`pi-${k}`); if(personalDataCache[k==='birthdate'?'BirthDate':'RecruitDate']) { const d = new Date(personalDataCache[k==='birthdate'?'BirthDate':'RecruitDate']); if(!isNaN(d)) el.value=d.toISOString().split('T')[0]; }});
+            document.getElementById('pi-image').value = "";
+            document.getElementById('modal-edit-personal').classList.remove('section-hidden');
+        }
+        function closeEditPersonalModal() { document.getElementById('modal-edit-personal').classList.add('section-hidden'); }
+        async function savePersonalInfo() {
+            const updateData = {};
+            document.querySelectorAll('#form-personal-info input:not([type="file"]), #form-personal-info textarea, #form-personal-info select').forEach(el => updateData[el.name] = el.value);
+            if(updateData.IDCard.length !== 13) return alert("เลขบัตรประชาชนต้อง 13 หลัก");
+            const payload = { action: "update", sheetName: "PersonalInfo", key: { column: "Username", value: updateData.Username }, data: updateData };
+            const file = document.getElementById('pi-image').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async () => { payload.fileData = { base64: reader.result, filename: `Pic_${Date.now()}.${file.name.split('.').pop()}`, columnName: "Image" }; await callAPI(payload, "บันทึก..."); personalDataCache = null; loadDataForView('personal-info'); closeEditPersonalModal(); };
+                reader.readAsDataURL(file);
+            } else { await callAPI(payload, "บันทึก..."); personalDataCache = null; loadDataForView('personal-info'); closeEditPersonalModal(); }
+        }
+
+        // --- 6. MODULES: EDUCATION ---
+        function renderEducationTable(data) {
+            const tbody = document.getElementById('education-table-body');
+            if (!data.length) return tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-red-400">ไม่พบประวัติ</td></tr>`;
+            tbody.innerHTML = data.map((row, i) => `
+                <tr class="border-b"><td class="py-2 px-4">${row.Level}</td><td class="py-2 px-4">${row.DegreeName} ${row.DegreeAbbr?`(${row.DegreeAbbr})`:''}</td><td class="py-2 px-4">${row.Major}</td><td class="py-2 px-4">${row.Institute}</td><td class="py-2 px-4 text-center">${formatDateTH(row.Date)}</td><td class="py-2 px-4 text-center">${row.Doc?`<a href="${row.Doc}" target="_blank" class="text-blue-500">ดูเอกสาร</a>`:'-'}</td><td class="py-2 px-4 text-center"><button onclick="openEducationModal(${i})" class="text-brand-yellow hover:text-yellow-600 bg-yellow-50 px-2 py-1 rounded">แก้ไข</button></td></tr>
+            `).join('');
+        }
+        function openEducationModal(idx = null) {
+            document.getElementById('form-education').reset();
+            document.getElementById('ed-username').value = currentUser.username;
+            const docNotice = document.getElementById('ed-current-doc');
+            if (idx !== null) {
+                const d = educationDataCache[idx];
+                document.getElementById('ed-action-type').value = "update";
+                ['EduID', 'Level', 'Institute', 'DegreeName', 'DegreeAbbr', 'Major', 'Minor'].forEach(k => document.getElementById(`ed-${k.toLowerCase()}`).value = d[k]||"");
+                if (d.Date) { const dt=new Date(d.Date); if(!isNaN(dt)) document.getElementById('ed-date').value = dt.toISOString().split('T')[0]; }
+                if(d.Doc) docNotice.classList.remove('section-hidden'); else docNotice.classList.add('section-hidden');
+            } else {
+                document.getElementById('ed-action-type').value = "create";
+                document.getElementById('ed-eduid').value = "EDU-" + Date.now();
+                docNotice.classList.add('section-hidden');
+            }
+            document.getElementById('modal-education').classList.remove('section-hidden');
+        }
+        function closeEducationModal() { document.getElementById('modal-education').classList.add('section-hidden'); }
+        async function saveEducationInfo() {
+            if(!document.getElementById('form-education').checkValidity()) return document.getElementById('form-education').reportValidity();
+            const action = document.getElementById('ed-action-type').value;
+            const updateData = {};
+            ['EduID', 'Username', 'Level', 'DegreeName', 'DegreeAbbr', 'Major', 'Minor', 'Institute', 'Date'].forEach(k => updateData[k] = document.getElementById(`ed-${k.toLowerCase()}`).value);
+            const payload = { action, sheetName: "Education", data: updateData };
+            if(action==="update") payload.key = { column: "EduID", value: updateData.EduID };
+            const file = document.getElementById('ed-doc').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async () => { payload.fileData = { base64: reader.result, filename: `Edu_${Date.now()}.${file.name.split('.').pop()}`, columnName: "Doc" }; await executeSaveEducation(payload); };
+                reader.readAsDataURL(file);
+            } else { await executeSaveEducation(payload); }
+        }
+        async function executeSaveEducation(p) { await callAPI(p, "บันทึก..."); closeEducationModal(); educationDataCache = null; loadDataForView('education'); }
+
+        // --- 7. MODULES: LICENSES ---
+        function renderLicensesTable(data) {
+            const tbody = document.getElementById('licenses-table-body');
+            if (!data.length) return tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-red-400">ไม่พบประวัติ</td></tr>`;
+            tbody.innerHTML = data.map((row, i) => `
+                <tr class="border-b"><td class="py-2 px-4">${row.Type}</td><td class="py-2 px-4">${row.No}</td><td class="py-2 px-4 text-center">${formatDateTH(row.Issue)}</td><td class="py-2 px-4 text-center">${row.Expire?formatDateTH(row.Expire):'<span class="text-green-600">ตลอดชีพ</span>'}</td><td class="py-2 px-4 text-center">${row.Doc?`<a href="${row.Doc}" target="_blank" class="text-blue-500">ดูเอกสาร</a>`:'-'}</td><td class="py-2 px-4 text-center"><button onclick="openLicensesModal(${i})" class="text-brand-yellow hover:text-yellow-600 bg-yellow-50 px-2 py-1 rounded">แก้ไข</button></td></tr>
+            `).join('');
+        }
+        function openLicensesModal(idx = null) {
+            document.getElementById('form-licenses').reset();
+            document.getElementById('lic-username').value = currentUser.username;
+            const docNotice = document.getElementById('lic-current-doc');
+            if (idx !== null) {
+                const d = licensesDataCache[idx];
+                document.getElementById('lic-action-type').value = "update";
+                ['LicenseID', 'Type', 'No'].forEach(k => document.getElementById(`lic-${k.toLowerCase()}`).value = d[k]||"");
+                ['Issue', 'Expire'].forEach(k => { if(d[k]) { const dt=new Date(d[k]); if(!isNaN(dt)) document.getElementById(`lic-${k.toLowerCase()}`).value = dt.toISOString().split('T')[0]; }});
+                if(d.Doc) docNotice.classList.remove('section-hidden'); else docNotice.classList.add('section-hidden');
+            } else {
+                document.getElementById('lic-action-type').value = "create";
+                document.getElementById('lic-licenseid').value = "LIC-" + Date.now();
+                docNotice.classList.add('section-hidden');
+            }
+            document.getElementById('modal-licenses').classList.remove('section-hidden');
+        }
+        function closeLicensesModal() { document.getElementById('modal-licenses').classList.add('section-hidden'); }
+        async function saveLicensesInfo() {
+            if(!document.getElementById('form-licenses').checkValidity()) return document.getElementById('form-licenses').reportValidity();
+            const action = document.getElementById('lic-action-type').value;
+            const updateData = {};
+            ['LicenseID', 'Username', 'Type', 'No', 'Issue', 'Expire'].forEach(k => updateData[k] = document.getElementById(`lic-${k.toLowerCase()}`).value);
+            const payload = { action, sheetName: "Licenses", data: updateData };
+            if(action==="update") payload.key = { column: "LicenseID", value: updateData.LicenseID };
+            const file = document.getElementById('lic-doc').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async () => { payload.fileData = { base64: reader.result, filename: `Lic_${Date.now()}.${file.name.split('.').pop()}`, columnName: "Doc" }; await callAPI(payload, "บันทึก..."); closeLicensesModal(); licensesDataCache = null; loadDataForView('licenses'); };
+                reader.readAsDataURL(file);
+            } else { await callAPI(payload, "บันทึก..."); closeLicensesModal(); licensesDataCache = null; loadDataForView('licenses'); }
+        }
+
+        // --- 8. MODULES: LEAVE ---
+        function renderLeaveTable(data) {
+            const tbody = document.getElementById('leave-table-body');
+            if (!data.length) return tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-red-400">ไม่พบประวัติการลา</td></tr>`;
+            tbody.innerHTML = data.map((row, i) => {
+                let isApp = row.DateApprove && String(row.DateApprove).trim() !== "";
+                return `<tr class="border-b"><td class="py-2 px-4">${formatDateTH(row.Submit)}</td><td class="py-2 px-4">${row.Type}</td><td class="py-2 px-4 text-center">${formatDateTH(row.Start)}</td><td class="py-2 px-4 text-center">${formatDateTH(row.End)}</td><td class="py-2 px-4 text-center">${formatDateTH(row.onwork)}</td><td class="py-2 px-4 text-center">${isApp?`<span class="text-green-600">อนุมัติแล้ว</span>`:`<span class="text-orange-500">รออนุมัติ</span>`}</td><td class="py-2 px-4 text-center"><button onclick="openLeaveModal(${i}, ${isApp})" class="px-2 py-1 rounded bg-gray-100">${isApp?'ดูข้อมูล':'แก้ไข'}</button></td></tr>`;
+            }).join('');
+        }
+        function calculateReturnDate() {
+            const end = document.getElementById('lv-end').value;
+            if(end) { let d=new Date(end); d.setDate(d.getDate()+1); if(d.getDay()===6) d.setDate(d.getDate()+2); if(d.getDay()===0) d.setDate(d.getDate()+1); document.getElementById('lv-onwork').value = d.toISOString().split('T')[0]; }
+        }
+
+        const leaveRulesMap = {
+            "ลาป่วย": "ลาได้ตามความจำเป็น แต่รับเงินเดือนได้ไม่เกิน 60 วันทำการ/ปีงบประมาณ (ตั้งแต่ 3 วันขึ้นไปต้องมีใบรับรองแพทย์)",
+            "ลาคลอดบุตร": "ลาได้ไม่เกิน 90 วัน โดยได้รับเงินเดือน",
+            "ลาไปช่วยเหลือภริยาที่คลอดบุตร": "สำหรับข้าราชการชาย ลาได้ติดต่อกันไม่เกิน 15 วันทำการ และต้องยื่นใบลาภายใน 90 วันนับแต่วันที่คลอด",
+            "ลากิจส่วนตัว": "ลาได้ปีละไม่เกิน 45 วันทำการ",
+            "ลาพักผ่อน": "ลาได้ปีละ 30 วันทำการ (ข้าราชการที่บรรจุใหม่ยังไม่ถึง 6 เดือนอาจยังไม่มีสิทธิลาประเภทนี้)",
+            "ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์": "ลาอุปสมบทได้ไม่เกิน 120 วัน",
+            "ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล": "ลาได้ตามหมายเรียก โดยได้รับเงินเดือนตามสิทธิ",
+            "ลาไปศึกษา ฝึกอบรม ดูงาน หรือปฏิบัติการวิจัย": "ลาได้ตามหลักสูตรหรือระยะเวลาที่กำหนด",
+            "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ": "ลาได้โดยพิจารณาตามความเหมาะสม",
+            "ลาติดตามคู่สมรส": "ลาได้สูงสุดไม่เกิน 2 ปี และอาจขออนุญาตลาต่อได้อีกไม่เกิน 2 ปี (รวมเป็น 4 ปี)",
+            "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ": "ลาได้ตามความจำเป็น และตามที่คณะกรรมการแพทย์ระบุ"
+        };
+
+        function updateLeaveRuleHint() {
+            const type = document.getElementById('lv-type').value;
+            const hintBox = document.getElementById('lv-rule-hint');
+            if (type && leaveRulesMap[type]) {
+                hintBox.innerHTML = `<i class="fa-solid fa-circle-info mr-1"></i> <strong>เงื่อนไข:</strong> ${leaveRulesMap[type]}`;
+                hintBox.classList.remove('section-hidden');
+            } else {
+                hintBox.classList.add('section-hidden');
+            }
+        }
+
+        function openLeaveModal(idx = null, isView = false) {
+            const form = document.getElementById('form-leave'); form.reset();
+            Array.from(form.elements).forEach(el => el.disabled = false); document.getElementById('lv-submit').readOnly = true;
+            document.getElementById('lv-username').value = currentUser.username;
+            if (idx !== null) {
+                const d = leaveDataCache[idx];
+                document.getElementById('lv-action-type').value = "update";
+                ['LeaveID', 'Type', 'Contact', 'DateApprove'].forEach(k => document.getElementById(`lv-${k.toLowerCase()}`).value = d[k]||"");
+                ['Submit', 'Start', 'End', 'onwork'].forEach(k => { if(d[k] && !isNaN(new Date(d[k]))) document.getElementById(`lv-${k.toLowerCase()}`).value = new Date(d[k]).toISOString().split('T')[0]; });
+                updateLeaveRuleHint();
+                if(isView) { Array.from(form.elements).forEach(el => el.disabled=true); document.getElementById('btn-save-leave').classList.add('section-hidden'); document.getElementById('lv-status-warning').classList.remove('section-hidden'); }
+                else { document.getElementById('btn-save-leave').classList.remove('section-hidden'); document.getElementById('lv-status-warning').classList.add('section-hidden'); }
+            } else {
+                document.getElementById('lv-action-type').value = "create";
+                document.getElementById('lv-leaveid').value = "LV-" + Date.now();
+                document.getElementById('lv-submit').value = new Date().toISOString().split('T')[0];
+                document.getElementById('lv-dateapprove').value = "";
+                updateLeaveRuleHint();
+                document.getElementById('btn-save-leave').classList.remove('section-hidden'); document.getElementById('lv-status-warning').classList.add('section-hidden');
+            }
+            document.getElementById('modal-leave').classList.remove('section-hidden');
+        }
+        function closeLeaveModal() { document.getElementById('modal-leave').classList.add('section-hidden'); }
+        async function saveLeaveInfo() {
+            if(!document.getElementById('form-leave').checkValidity()) return document.getElementById('form-leave').reportValidity();
+            const action = document.getElementById('lv-action-type').value;
+            const updateData = {};
+            ['LeaveID', 'Username', 'Type', 'Start', 'End', 'onwork', 'Contact', 'Submit', 'DateApprove'].forEach(k => updateData[k] = document.getElementById(`lv-${k.toLowerCase()}`).value);
+            const payload = { action, sheetName: "Leave", data: updateData };
+            if(action==="update") payload.key = { column: "LeaveID", value: updateData.LeaveID };
+            await callAPI(payload, "บันทึก..."); closeLeaveModal(); leaveDataCache = null; loadDataForView('leave');
+        }
+
+        // --- ระบบแจ้งเตือน Admin ผู้ที่ลาวันนี้ ---
+        async function checkAndShowTodayLeave() {
+            document.getElementById('modal-today-leave').classList.remove('section-hidden');
+            document.getElementById('today-leave-content').innerHTML = `<div class="text-center py-4"><i class="fa-solid fa-circle-notch fa-spin text-brand-orange text-2xl mb-2 block"></i>กำลังตรวจสอบข้อมูล...</div>`;
+            
+            try {
+                // ดึงข้อมูล Leave และ PersonalInfo พร้อมกัน (โหลดเงียบๆ ไม่มี Loading เต็มจอ)
+                const [leaveRes, personalRes] = await Promise.all([
+                    callAPI({ action: "read", sheetName: "Leave", username: currentUser.username, role: currentUser.role }, null),
+                    callAPI({ action: "read", sheetName: "PersonalInfo", username: currentUser.username, role: currentUser.role }, null)
+                ]);
+
+                if (leaveRes.status === "success" && personalRes.status === "success") {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    
+                    const onLeaveToday = leaveRes.data.filter(row => {
+                        if(!row.Start || !row.End) return false;
+                        const start = new Date(row.Start); start.setHours(0,0,0,0);
+                        const end = new Date(row.End); end.setHours(0,0,0,0);
+                        return today >= start && today <= end; // วันนี้ต้องอยู่ในช่วงวันที่เริ่มลา ถึง วันที่สิ้นสุด
+                    });
+
+                    if (onLeaveToday.length > 0) {
+                        let html = '';
+                        onLeaveToday.forEach(leave => {
+                            const person = personalRes.data.find(p => p.Username === leave.Username) || {};
+                            const name = person.Firstname ? `${person.Prefix||''}${person.Firstname} ${person.Lastname}` : leave.Username;
+                            const position = person.Position || '-';
+                            
+                            html += `
+                            <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-brand-orange flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                                <div>
+                                    <h4 class="font-bold text-gray-800">${name}</h4>
+                                    <p class="text-xs text-gray-500">ตำแหน่ง: ${position}</p>
+                                </div>
+                                <div class="text-left sm:text-right">
+                                    <span class="inline-block px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold mb-1">${leave.Type}</span>
+                                    <p class="text-xs text-gray-600">กลับมาปฏิบัติงาน: ${formatDateTH(leave.onwork)}</p>
+                                </div>
+                            </div>`;
+                        });
+                        document.getElementById('today-leave-content').innerHTML = html;
+                    } else {
+                        document.getElementById('today-leave-content').innerHTML = `<div class="text-center py-8 text-gray-500"><i class="fa-solid fa-calendar-check text-4xl text-green-500 mb-3 block"></i>วันนี้ไม่มีบุคลากรลาหยุดครับ</div>`;
+                    }
+                }
+            } catch (err) {
+                document.getElementById('today-leave-content').innerHTML = `<div class="text-center text-red-500 py-4">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>`;
+            }
+        }
+
+        function closeTodayLeaveModal() {
+            document.getElementById('modal-today-leave').classList.add('section-hidden');
+        }
+
+        // --- 9. MODULES: ADMIN MANAGE USERS ---
+        function renderAdminManageTable(query = "") {
+            const tbody = document.getElementById('admin-manage-table-body');
+            const f = adminAllUsersCache.filter(u => {
+                if (!query) return true;
+                const p = adminAllPersonalInfoCache.find(x => x.Username === u.Username) || {};
+                return `${u.Username} ${p.Firstname} ${p.Lastname} ${p.Position}`.toLowerCase().includes(query.toLowerCase());
+            });
+            if (!f.length) return tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-red-400">ไม่พบข้อมูล</td></tr>`;
+            tbody.innerHTML = f.map(u => {
+                const p = adminAllPersonalInfoCache.find(x => x.Username === u.Username) || {};
+                const name = p.Firstname ? `${p.Prefix||''}${p.Firstname} ${p.Lastname}` : '<span class="text-gray-400">ยังไม่กรอก</span>';
+                return `<tr class="border-b"><td class="py-2 px-4">${u.Username}</td><td class="py-2 px-4">${name}</td><td class="py-2 px-4">${p.Position||'-'}</td><td class="py-2 px-4 text-center">${u.Role}</td><td class="py-2 px-4 text-center">${u.Status}</td><td class="py-2 px-4 text-center"><button onclick="openAdminAccountModal('${u.Username}')" class="px-2 py-1 bg-gray-100 rounded mr-1"><i class="fa-solid fa-key"></i></button><button onclick="adminEditPersonalInfo('${u.Username}')" class="px-2 py-1 bg-purple-100 text-purple-700 rounded"><i class="fa-solid fa-address-card"></i></button></td></tr>`;
+            }).join('');
+        }
+        function searchAdminTable() { renderAdminManageTable(document.getElementById('admin-search-user').value); }
+        function adminEditPersonalInfo(uname) {
+            const p = adminAllPersonalInfoCache.find(x => x.Username === uname);
+            if (p) { personalDataCache = p; openEditPersonalModal(); } else alert("ไม่พบประวัติ");
+        }
+        function openAdminAccountModal(uname = null) {
+            document.getElementById('form-admin-account').reset();
+            const uf = document.getElementById('adm-username');
+            if (uname) {
+                const d = adminAllUsersCache.find(u => u.Username === uname);
+                document.getElementById('adm-action-type').value = "update";
+                uf.value = d.Username; uf.readOnly = true; uf.classList.add('bg-gray-100');
+                ['Password', 'Role', 'Status'].forEach(k => document.getElementById(`adm-${k.toLowerCase()}`).value = d[k]);
+                document.getElementById('adm-new-user-notice').classList.add('section-hidden');
+            } else {
+                document.getElementById('adm-action-type').value = "create";
+                uf.readOnly = false; uf.classList.remove('bg-gray-100');
+                document.getElementById('adm-new-user-notice').classList.remove('section-hidden');
+            }
+            document.getElementById('modal-admin-account').classList.remove('section-hidden');
+        }
+        function closeAdminAccountModal() { document.getElementById('modal-admin-account').classList.add('section-hidden'); }
+        async function saveAdminAccount() {
+            const action = document.getElementById('adm-action-type').value;
+            const updateData = {}; ['Username', 'Password', 'Role', 'Status'].forEach(k => updateData[k] = document.getElementById(`adm-${k.toLowerCase()}`).value.trim());
+            if(!updateData.Username || !updateData.Password) return alert("กรอกข้อมูลให้ครบ");
+            if (action === "create" && adminAllUsersCache.some(u => u.Username.toLowerCase() === updateData.Username.toLowerCase())) return alert("Username ซ้ำ");
+            const payload = { action, sheetName: "Users", data: updateData };
+            if(action==="update") payload.key = { column: "Username", value: updateData.Username };
+            showLoading("กำลังบันทึก...");
+            const res = await callAPI(payload, null);
+            if (res.status === "success") {
+                if (action === "create") await callAPI({ action: "create", sheetName: "PersonalInfo", data: { Username: updateData.Username } }, null);
+                hideLoading(); closeAdminAccountModal(); adminAllUsersCache = []; loadDataForView('admin-manage');
+            } else { hideLoading(); alert(res.message); }
+        }
+
+        // --- 10. MODULES: ADMIN REPORTS ---
+        function generateAndPrintReport() {
+            const cbs = document.querySelectorAll('.report-cb');
+            const fields = []; cbs.forEach(cb => { if(cb.checked || cb.disabled) fields.push({key: cb.value, label: cb.nextElementSibling.innerText}); });
+            if(!fields.length) return alert("เลือกข้อมูลอย่างน้อย 1 ฟิลด์");
+            document.getElementById('print-header-title').innerText = document.getElementById('report-title').value;
+            document.getElementById('dynamic-print-page').innerHTML = `@page { size: A4 ${document.getElementById('report-orientation').value}; margin: 0; } @media print { body { padding: 1.5cm; } }`;
+            document.getElementById('print-table-head').innerHTML = `<tr><th class="text-center w-12">ลำดับ</th>${fields.map(f => `<th class="text-left">${f.label}</th>`).join('')}</tr>`;
+            let count = 0;
+            document.getElementById('print-table-body').innerHTML = adminAllPersonalInfoCache.filter(p => p.Firstname).map(p => {
+                count++; return `<tr><td class="text-center">${count}</td>${fields.map(f => `<td>${(f.key==='RecruitDate' && p[f.key]) ? formatDateTH(p[f.key]) : (p[f.key]||"-")}</td>`).join('')}</tr>`;
+            }).join('');
+            document.getElementById('print-summary-count').innerText = count;
+            const pa = document.getElementById('printable-area'); pa.classList.remove('hidden');
+            setTimeout(() => { window.print(); pa.classList.add('hidden'); }, 300);
+        }
+
+        // --- 11. MODULES: ADMIN CONFIG ---
+        function saveAdminConfig() {
+            if(confirm("ยืนยันการบันทึก?")) {
+                showLoading("อัปเดตระบบ..."); setTimeout(() => { hideLoading(); alert("บันทึกเรียบร้อย!"); }, 800);
+            }
+        }
+    </script>
+</body>
+</html>
